@@ -75,7 +75,7 @@ opt:
   lambda_skinning: [10,1000,0.1]
   lambda_pose: 0.
   lambda_aiap_xyz: 1.
-  lambda_aiap_cov: 100.
+  lambda_aiap_cov: 0.
 
   # densification configs
   percent_dense: 0.01
