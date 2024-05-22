@@ -11,7 +11,7 @@
 
 import torch
 import math
-from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
+from diff_surfel_rasterization import GaussianRasterizationSettings, GaussianRasterizer
 
 def render(data,
            iteration,
@@ -77,7 +77,7 @@ def render(data,
     shs = None
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen). 
-    rendered_image, radii = rasterizer(
+    rendered_image, radii, allmap = rasterizer(
         means3D = means3D,
         means2D = means2D,
         shs = shs,
@@ -89,7 +89,7 @@ def render(data,
 
     opacity_image = None
     if return_opacity:
-        opacity_image, _ = rasterizer(
+        opacity_image, _, allmap_opac = rasterizer(
             means3D=means3D,
             means2D=means2D,
             shs=None,
