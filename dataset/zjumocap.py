@@ -223,7 +223,7 @@ class ZJUMoCapDataset(Dataset):
         coord_max = np.max(vertices, axis=0)
         coord_min = np.min(vertices, axis=0)
         padding_ratio = self.cfg.padding
-        padding_ratio = np.array(padding_ratio, dtype=np.float)
+        padding_ratio = np.array(padding_ratio, dtype=np.float32)
         padding = (coord_max - coord_min) * padding_ratio
         coord_max += padding
         coord_min -= padding

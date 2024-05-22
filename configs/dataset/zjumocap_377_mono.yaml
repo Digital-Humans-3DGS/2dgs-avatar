@@ -4,7 +4,7 @@ dataset_name: zju_377_mono
 
 dataset:
   name: zjumocap
-  root_dir: "../../data/ZJUMoCap"
+  root_dir: "/group_homes/public_cluster/home/share/dh/ZJUMoCap/ZJUMoCap"
   subject: CoreView_377
   refine: false
 
