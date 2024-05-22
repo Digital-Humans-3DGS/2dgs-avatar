@@ -311,7 +311,7 @@ def main(config):
         mode="disabled" if config.wandb_disable else None,
         name=wandb_name,
         project='gaussian-splatting-avatar',
-        entity='fast-avatar',
+        entity='iron-lu',
         dir=config.exp_dir,
         config=OmegaConf.to_container(config, resolve=True),
         settings=wandb.Settings(start_method='fork'),
