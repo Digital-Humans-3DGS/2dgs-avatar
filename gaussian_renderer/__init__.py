@@ -12,7 +12,6 @@
 import torch
 import math
 from diff_surfel_rasterization import GaussianRasterizationSettings, GaussianRasterizer
-from utils.point_utils import depth_to_normal
 
 def render(data,
            iteration,
@@ -70,14 +69,14 @@ def render(data,
     if pipe.compute_cov3D_python:
         # currently don't support normal consistency loss if use precomputed covariance
         splat2world = pc.get_covariance(scaling_modifier)
-        W, H = viewpoint_camera.image_width, viewpoint_camera.image_height
-        near, far = viewpoint_camera.znear, viewpoint_camera.zfar
+        W, H = data.image_width, data.image_height
+        near, far = data.znear, data.zfar
         ndc2pix = torch.tensor([
             [W / 2, 0, 0, (W-1) / 2],
             [0, H / 2, 0, (H-1) / 2],
             [0, 0, far-near, near],
             [0, 0, 0, 1]]).float().cuda().T
-        world2pix =  viewpoint_camera.full_proj_transform @ ndc2pix
+        world2pix =  data.full_proj_transform @ ndc2pix
         cov3D_precomp = (splat2world[:, [0,1,3]] @ world2pix[:,[0,1,3]]).permute(0,2,1).reshape(-1, 9) # column major
     else:
         scales = pc.get_scaling
