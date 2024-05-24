@@ -177,8 +177,10 @@ def training(config):
             loss += lbd * value
 
         # regularization
-        lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
-        lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
+        lambda_normal = C(iteration, config.opt.get('lambda_normal', 0.))
+        lambda_normal = lambda_normal if iteration > 7000 else 0.0
+        lambda_dist = C(iteration, config.opt.get('lambda_dist', 0.))
+        lambda_dist = lambda_dist if iteration > 3000 else 0.0
 
         rend_dist = render_pkg["rend_dist"]
         rend_normal  = render_pkg['rend_normal']
@@ -286,8 +288,6 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
                 examples.append(wandb_img)
 
                 l1_test += l1_loss(image, gt_image).mean().double()
-                print(image)
-                print(f"max: {image.max()}, min: {image.min()}")
                 metrics_test = evaluator(image, gt_image)
                 psnr_test += metrics_test["psnr"]
                 ssim_test += metrics_test["ssim"]

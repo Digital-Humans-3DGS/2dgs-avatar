@@ -37,7 +37,7 @@ class MLP(NonRigidDeform):
             self.latent = nn.Embedding(len(self.frame_dict), self.latent_dim)
 
         d_in = 3
-        d_out = 3 + 3 + 4
+        d_out = 3 + 2 + 4
         self.feature_dim = cfg.get('feature_dim', 0)
         d_out += self.feature_dim
 
@@ -76,8 +76,8 @@ class MLP(NonRigidDeform):
         deltas = self.mlp(xyz_norm, cond=pose_feat)
 
         delta_xyz = deltas[:, :3]
-        delta_scale = deltas[:, 3:6]
-        delta_rot = deltas[:, 6:10]
+        delta_scale = deltas[:, 3:5]
+        delta_rot = deltas[:, 5:9]
 
         deformed_gaussians._xyz = gaussians._xyz + delta_xyz
 
@@ -201,7 +201,7 @@ class HashGridwithMLP(NonRigidDeform):
             self.frame_dict = metadata['frame_dict']
             self.latent = nn.Embedding(len(self.frame_dict), self.latent_dim)
 
-        d_out = 3 + 3 + 4
+        d_out = 3 + 2 + 4
         self.feature_dim = cfg.get('feature_dim', 0)
         d_out += self.feature_dim
 
