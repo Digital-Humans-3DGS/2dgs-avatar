@@ -106,7 +106,7 @@ class MLP(NonRigidDeform):
             raise ValueError
 
         if self.feature_dim > 0:
-            setattr(deformed_gaussians, "non_rigid_feature", deltas[:, 10:])
+            setattr(deformed_gaussians, "non_rigid_feature", deltas[:, 9:])
 
         if compute_loss:
             # regularization
@@ -241,8 +241,8 @@ class HashGridwithMLP(NonRigidDeform):
         deltas = self.mlp(feature, cond=pose_feat)
 
         delta_xyz = deltas[:, :3]
-        delta_scale = deltas[:, 3:6]
-        delta_rot = deltas[:, 6:10]
+        delta_scale = deltas[:, 3:5]
+        delta_rot = deltas[:, 5:9]
 
         deformed_gaussians._xyz = gaussians._xyz + delta_xyz
 
@@ -271,7 +271,7 @@ class HashGridwithMLP(NonRigidDeform):
             raise ValueError
 
         if self.feature_dim > 0:
-            setattr(deformed_gaussians, "non_rigid_feature", deltas[:, 10:])
+            setattr(deformed_gaussians, "non_rigid_feature", deltas[:, 9:])
 
         if compute_loss:
             # regularization
