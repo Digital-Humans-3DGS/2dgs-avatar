@@ -271,6 +271,7 @@ def validation(iteration, testing_iterations, testing_interval, scene : Scene, e
                 examples.append(wandb_img)
 
                 l1_test += l1_loss(image, gt_image).mean().double()
+                print(image)
                 metrics_test = evaluator(image, gt_image)
                 psnr_test += metrics_test["psnr"]
                 ssim_test += metrics_test["ssim"]
