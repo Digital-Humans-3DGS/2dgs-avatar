@@ -76,8 +76,8 @@ opt:
   lambda_pose: 0.
   lambda_aiap_xyz: 0.
   lambda_aiap_cov: 0.
-  lambda_normal: 1000.
-  lambda_dist: 0.05
+  lambda_normal: 0.
+  lambda_dist: 0.
 
   # densification configs
   percent_dense: 0.01

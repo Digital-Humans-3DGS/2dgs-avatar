@@ -131,10 +131,10 @@ def test(config):
             # extract the mesh and save
             name = f'fuse{idx}.ply'
             mesh_res = 1024
-            depth_trunc = 3
+            depth_trunc = 10
             num_cluster = 1000
-            voxel_size = depth_trunc / mesh_res
-            sdf_trunc = 5.0 * voxel_size
+            voxel_size = 0.004
+            sdf_trunc = 0.02
             mesh = gaussExtractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
             o3d.io.write_triangle_mesh(os.path.join(render_path, name), mesh)
             # print("mesh saved at {}".format(os.path.join(render_path, name)))
