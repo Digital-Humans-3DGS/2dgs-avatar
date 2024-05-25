@@ -25,6 +25,9 @@ from utils.general_utils import Evaluator, PSEvaluator
 import hydra
 from omegaconf import OmegaConf
 import wandb
+# new
+from utils.mesh_utils import GaussianExtractor, to_cam_open3d, post_process_mesh
+import open3d as o3d
 
 def predict(config):
     with torch.set_grad_enabled(False):
@@ -135,6 +138,26 @@ def test(config):
         _ssim = torch.mean(torch.stack(ssims))
         _lpips = torch.mean(torch.stack(lpipss))
         _time = np.mean(times[1:])
+        
+        print("export mesh ...")
+        gaussExtractor = GaussianExtractor(gaussians, render, pipe, bg_color=bg_color)    
+        os.makedirs(render_path, exist_ok=True)
+        # set the active_sh to 0 to export only diffuse texture
+        gaussExtractor.gaussians.active_sh_degree = 0
+        gaussExtractor.reconstruction(scene.getTrainCameras())
+        # extract the mesh and save
+        name = 'fuse.ply'
+        depth_trunc = (gaussExtractor.radius * 2.0) if args.depth_trunc < 0  else args.depth_trunc
+        voxel_size = (depth_trunc / args.mesh_res) if args.voxel_size < 0 else args.voxel_size
+        sdf_trunc = 5.0 * voxel_size if args.sdf_trunc < 0 else args.sdf_trunc
+        mesh = gaussExtractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
+        o3d.io.write_triangle_mesh(os.path.join(render_path, name), mesh)
+        print("mesh saved at {}".format(os.path.join(render_path, name)))
+        # post-process the mesh and save, saving the largest N clusters
+        mesh_post = post_process_mesh(mesh, cluster_to_keep=args.num_cluster)
+        o3d.io.write_triangle_mesh(os.path.join(render_path, name.replace('.ply', '_post.ply')), mesh_post)
+        print("mesh post processed saved at {}".format(os.path.join(render_path, name.replace('.ply', '_post.ply'))))
+        
         wandb.log({'metrics/psnr': _psnr,
                    'metrics/ssim': _ssim,
                    'metrics/lpips': _lpips,
