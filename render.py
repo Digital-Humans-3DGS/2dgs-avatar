@@ -79,99 +79,99 @@ def predict(config):
 
 def test(config):
     with torch.no_grad():
-        if DEBUG:
-            gaussians = GaussianModel(config.model.gaussian)
-            scene = Scene(config, gaussians, config.exp_dir)
-            scene.eval()
-            load_ckpt = config.get('load_ckpt', None)
-            if load_ckpt is None:
-                load_ckpt = os.path.join(scene.save_dir, "ckpt" + str(config.opt.iterations) + ".pth")
-            scene.load_checkpoint(load_ckpt)
+        gaussians = GaussianModel(config.model.gaussian)
+        scene = Scene(config, gaussians, config.exp_dir)
+        scene.eval()
+        load_ckpt = config.get('load_ckpt', None)
+        if load_ckpt is None:
+            load_ckpt = os.path.join(scene.save_dir, "ckpt" + str(config.opt.iterations) + ".pth")
+        scene.load_checkpoint(load_ckpt)
 
-            bg_color = [1, 1, 1] if config.dataset.white_background else [0, 0, 0]
-            background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
+        bg_color = [1, 1, 1] if config.dataset.white_background else [0, 0, 0]
+        background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
-            render_path = os.path.join(config.exp_dir, config.suffix, 'renders')
-            makedirs(render_path, exist_ok=True)
+        render_path = os.path.join(config.exp_dir, config.suffix, 'renders')
+        makedirs(render_path, exist_ok=True)
 
-            iter_start = torch.cuda.Event(enable_timing=True)
-            iter_end = torch.cuda.Event(enable_timing=True)
+        iter_start = torch.cuda.Event(enable_timing=True)
+        iter_end = torch.cuda.Event(enable_timing=True)
 
-            evaluator = PSEvaluator() if config.dataset.name == 'people_snapshot' else Evaluator()
+        evaluator = PSEvaluator() if config.dataset.name == 'people_snapshot' else Evaluator()
 
-            psnrs = []
-            ssims = []
-            lpipss = []
-            times = []
-            for idx in trange(len(scene.test_dataset), desc="Rendering progress"):
-                view = scene.test_dataset[idx]
-                iter_start.record()
+        psnrs = []
+        ssims = []
+        lpipss = []
+        times = []
+        for idx in trange(len(scene.test_dataset), desc="Rendering progress"):
+            view = scene.test_dataset[idx]
+            iter_start.record()
 
-                render_pkg = render(view, config.opt.iterations, scene, config.pipeline, background,
-                                    compute_loss=False, return_opacity=False)
+            render_pkg = render(view, config.opt.iterations, scene, config.pipeline, background,
+                                compute_loss=False, return_opacity=False)
 
-                iter_end.record()
-                torch.cuda.synchronize()
-                elapsed = iter_start.elapsed_time(iter_end)
+            iter_end.record()
+            torch.cuda.synchronize()
+            elapsed = iter_start.elapsed_time(iter_end)
 
-                rendering = render_pkg["render"]
+            rendering = render_pkg["render"]
 
-                gt = view.original_image[:3, :, :]
+            gt = view.original_image[:3, :, :]
 
-                wandb_img = [wandb.Image(rendering[None], caption='render_{}'.format(view.image_name)),
-                            wandb.Image(gt[None], caption='gt_{}'.format(view.image_name))]
+            wandb_img = [wandb.Image(rendering[None], caption='render_{}'.format(view.image_name)),
+                        wandb.Image(gt[None], caption='gt_{}'.format(view.image_name))]
 
-                wandb.log({'test_images': wandb_img})
+            wandb.log({'test_images': wandb_img})
 
-                torchvision.utils.save_image(rendering, os.path.join(render_path, f"render_{view.image_name}.png"))
-
-                # evaluate
-                if config.evaluate:
-                    metrics = evaluator(rendering, gt)
-                    psnrs.append(metrics['psnr'])
-                    ssims.append(metrics['ssim'])
-                    lpipss.append(metrics['lpips'])
-                else:
-                    psnrs.append(torch.tensor([0.], device='cuda'))
-                    ssims.append(torch.tensor([0.], device='cuda'))
-                    lpipss.append(torch.tensor([0.], device='cuda'))
-                times.append(elapsed)
-
-            _psnr = torch.mean(torch.stack(psnrs))
-            _ssim = torch.mean(torch.stack(ssims))
-            _lpips = torch.mean(torch.stack(lpipss))
-            _time = np.mean(times[1:])
+            # print("export mesh ...")
+            gaussExtractor = GaussianExtractor(scene, render, config.opt.iterations, config.pipeline, background=background)    
+            os.makedirs(render_path, exist_ok=True)
+            # set the active_sh to 0 to export only diffuse texture
+            gaussExtractor.gaussians.active_sh_degree = 0
+            gaussExtractor.reconstruction([view])
+            # extract the mesh and save
+            name = f'fuse{idx}.ply'
+            mesh_res = 1024
+            depth_trunc = 3
+            num_cluster = 1000
+            voxel_size = depth_trunc / mesh_res
+            sdf_trunc = 5.0 * voxel_size
+            mesh = gaussExtractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
+            o3d.io.write_triangle_mesh(os.path.join(render_path, name), mesh)
+            # print("mesh saved at {}".format(os.path.join(render_path, name)))
+            # post-process the mesh and save, saving the largest N clusters
+            # mesh_post = post_process_mesh(mesh, cluster_to_keep=num_cluster)
+            # o3d.io.write_triangle_mesh(os.path.join(render_path, name.replace('.ply', '_post.ply')), mesh_post)
+            # print("mesh post processed saved at {}".format(os.path.join(render_path, name.replace('.ply', '_post.ply'))))
         
-        print("export mesh ...")
-        gaussExtractor = GaussianExtractor(gaussians, render, config.opt.iterations, config.pipeline, bg_color=bg_color)    
-        os.makedirs(render_path, exist_ok=True)
-        # set the active_sh to 0 to export only diffuse texture
-        gaussExtractor.gaussians.active_sh_degree = 0
-        gaussExtractor.reconstruction(scene.test_dataset)
-        # extract the mesh and save
-        name = 'fuse.ply'
-        mesh_res = 1024
-        depth_trunc = 3
-        num_cluster = 1000
-        voxel_size = depth_trunc / mesh_res
-        sdf_trunc = 5.0 * voxel_size
-        mesh = gaussExtractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
-        o3d.io.write_triangle_mesh(os.path.join(render_path, name), mesh)
-        print("mesh saved at {}".format(os.path.join(render_path, name)))
-        # post-process the mesh and save, saving the largest N clusters
-        mesh_post = post_process_mesh(mesh, cluster_to_keep=num_cluster)
-        o3d.io.write_triangle_mesh(os.path.join(render_path, name.replace('.ply', '_post.ply')), mesh_post)
-        print("mesh post processed saved at {}".format(os.path.join(render_path, name.replace('.ply', '_post.ply'))))
+            torchvision.utils.save_image(rendering, os.path.join(render_path, f"render_{view.image_name}.png"))
+
+            # evaluate
+            if config.evaluate:
+                metrics = evaluator(rendering, gt)
+                psnrs.append(metrics['psnr'])
+                ssims.append(metrics['ssim'])
+                lpipss.append(metrics['lpips'])
+            else:
+                psnrs.append(torch.tensor([0.], device='cuda'))
+                ssims.append(torch.tensor([0.], device='cuda'))
+                lpipss.append(torch.tensor([0.], device='cuda'))
+            times.append(elapsed)
+
+        _psnr = torch.mean(torch.stack(psnrs))
+        _ssim = torch.mean(torch.stack(ssims))
+        _lpips = torch.mean(torch.stack(lpipss))
+        _time = np.mean(times[1:])
+        
         
         wandb.log({'metrics/psnr': _psnr,
-                   'metrics/ssim': _ssim,
-                   'metrics/lpips': _lpips,
-                   'metrics/time': _time})
+                'metrics/ssim': _ssim,
+                'metrics/lpips': _lpips,
+                'metrics/time': _time})
         np.savez(os.path.join(config.exp_dir, config.suffix, 'results.npz'),
-                 psnr=_psnr.cpu().numpy(),
-                 ssim=_ssim.cpu().numpy(),
-                 lpips=_lpips.cpu().numpy(),
-                 time=_time)
+                psnr=_psnr.cpu().numpy(),
+                ssim=_ssim.cpu().numpy(),
+                lpips=_lpips.cpu().numpy(),
+                time=_time)
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
