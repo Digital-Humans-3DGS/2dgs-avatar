@@ -144,7 +144,7 @@ def test(config):
         os.makedirs(render_path, exist_ok=True)
         # set the active_sh to 0 to export only diffuse texture
         gaussExtractor.gaussians.active_sh_degree = 0
-        gaussExtractor.reconstruction(scene.getTrainCameras())
+        gaussExtractor.reconstruction(scene.test_dataset)
         # extract the mesh and save
         name = 'fuse.ply'
         mesh_res = 1024
