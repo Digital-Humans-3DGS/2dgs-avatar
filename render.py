@@ -20,6 +20,9 @@ import torchvision
 from utils.general_utils import fix_random
 from scene import GaussianModel
 
+from scene.cameras import Camera
+
+
 from utils.general_utils import Evaluator, PSEvaluator
 
 import hydra
@@ -127,14 +130,62 @@ def test(config):
             os.makedirs(render_path, exist_ok=True)
             # set the active_sh to 0 to export only diffuse texture
             gaussExtractor.gaussians.active_sh_degree = 0
-            gaussExtractor.reconstruction([view])
+
+            cameras = view.all_cameras
+
+            views = []
+            for k, camera in cameras.items():
+                K = np.array(camera['K'], dtype=np.float32).copy()
+                dist = np.array(camera['D'], dtype=np.float32).ravel()
+                R = np.array(camera['R'], np.float32)
+                T = np.array(camera['T'], np.float32)
+
+                H, W = 1024, 1024
+
+                M = np.eye(3)
+                M[0, 2] = (K[0, 2] - W / 2) / K[0, 0]
+                M[1, 2] = (K[1, 2] - H / 2) / K[1, 1]
+                K[0, 2] = W / 2
+                K[1, 2] = H / 2
+                R = M @ R
+                T = M @ T
+
+                R = np.transpose(R)
+                T = T[:, 0]
+
+                K[0, :] *= config.dataset.w / W
+                K[1, :] *= config.dataset.h / H
+
+                view_clone = Camera(
+                    frame_id=view.frame_id,
+                    cam_id=view.cam_id,
+                    K=K, R=R, T=T,
+                    FoVx=view.FoVx,
+                    FoVy=view.FoVy,
+                    image=view.image,
+                    mask=view.mask,
+                    gt_alpha_mask=None,
+                    image_name=f"c{view.cam_id}_f{view.frame_id if view.frame_id >= 0 else -view.frame_id - 1:06d}",
+                    data_device=config.dataset.data_device,
+                    # human params
+                    rots=view.rots,
+                    Jtrs=view.Jtrs,
+                    bone_transforms=view.bone_transforms,
+                    all_cameras=None,
+                )
+                views.append(view_clone)
+
+            # reconstruct the mesh
+            gaussExtractor.reconstruction(views)
+
+
             # extract the mesh and save
             name = f'fuse{idx}.ply'
             mesh_res = 1024
-            depth_trunc = 3
+            depth_trunc = 10
             num_cluster = 1000
-            voxel_size = depth_trunc / mesh_res
-            sdf_trunc = 5.0 * voxel_size
+            voxel_size = 0.004
+            sdf_trunc = 0.02
             mesh = gaussExtractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
             o3d.io.write_triangle_mesh(os.path.join(render_path, name), mesh)
             # print("mesh saved at {}".format(os.path.join(render_path, name)))
