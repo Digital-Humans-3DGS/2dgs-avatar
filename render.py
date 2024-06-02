@@ -21,10 +21,15 @@ from utils.general_utils import fix_random
 from scene import GaussianModel
 
 from utils.general_utils import Evaluator, PSEvaluator
+from utils.mesh_utils import GaussianExtractor, to_cam_open3d, post_process_mesh
 
 import hydra
 from omegaconf import OmegaConf
 import wandb
+
+import open3d as o3d
+from scene.cameras import Camera
+
 
 def predict(config):
     with torch.set_grad_enabled(False):
@@ -103,21 +108,96 @@ def test(config):
 
             render_pkg = render(view, config.opt.iterations, scene, config.pipeline, background,
                                 compute_loss=False, return_opacity=False)
-
+          
             iter_end.record()
             torch.cuda.synchronize()
             elapsed = iter_start.elapsed_time(iter_end)
 
             rendering = render_pkg["render"]
+            depth = render_pkg["depth"]
+
 
             gt = view.original_image[:3, :, :]
 
             wandb_img = [wandb.Image(rendering[None], caption='render_{}'.format(view.image_name)),
                          wandb.Image(gt[None], caption='gt_{}'.format(view.image_name))]
 
+            # wandb_img = [wandb.Image(rendering[None], caption='render_{}'.format(view.image_name)),]
             wandb.log({'test_images': wandb_img})
+            gaussExtractor = GaussianExtractor(scene, render, config.opt.iterations, config.pipeline, background=background)    
+            os.makedirs(render_path, exist_ok=True)
+            # wandb_dept = [wandb.Image(depth[None], caption='depth_{}'.format(view.image_name)),]
+            # wandb.log({'depth_images': wandb_dept})
+            gaussExtractor.gaussians.active_sh_degree = 0
 
-            torchvision.utils.save_image(rendering, os.path.join(render_path, f"render_{view.image_name}.png"))
+            cameras = view.all_cameras
+            print(f"WARNING: we have {len(cameras)} cameras")
+            views = []
+            # print(cameras)
+            for i in cameras['all_cam_names']:
+                camera = cameras[i]
+
+                K = np.array(camera['K'], dtype=np.float32).copy()
+                dist = np.array(camera['D'], dtype=np.float32).ravel()
+                R = np.array(camera['R'], np.float32)
+                T = np.array(camera['T'], np.float32)
+
+                H, W = 1024, 1024
+
+                M = np.eye(3)
+                M[0, 2] = (K[0, 2] - W / 2) / K[0, 0]
+                M[1, 2] = (K[1, 2] - H / 2) / K[1, 1]
+                K[0, 2] = W / 2
+                K[1, 2] = H / 2
+                R = M @ R
+                T = M @ T
+
+                R = np.transpose(R)
+                T = T[:, 0]
+
+                h, w = config.dataset.img_hw
+                K[0, :] *= w / W
+                K[1, :] *= h / H
+
+                view_clone = Camera(
+                    frame_id=view.frame_id,
+                    cam_id=view.cam_id,
+                    K=K, R=R, T=T,
+                    FoVx=view.FoVx,
+                    FoVy=view.FoVy,
+                    image=view.image,
+                    mask=view.mask,
+                    gt_alpha_mask=None,
+                    image_name=f"c{view.cam_id}_f{view.frame_id if view.frame_id >= 0 else -view.frame_id - 1:06d}",
+                    data_device=config.dataset.data_device,
+                    # human params
+                    rots=view.rots,
+                    Jtrs=view.Jtrs,
+                    bone_transforms=view.bone_transforms,
+                    all_cameras=None,
+                )
+                views.append(view_clone)
+
+            # reconstruct the mesh
+            gaussExtractor.reconstruction(views)
+            name = f'fuse{idx}.ply'
+            mesh_res = 1024
+            depth_trunc = 5  # 10
+            num_cluster = 100  # 1000
+            voxel_size = 0.004
+            sdf_trunc = 0.02
+            mesh = gaussExtractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
+            o3d.io.write_triangle_mesh(os.path.join(render_path, name), mesh)
+            # print("mesh saved at {}".format(os.path.join(render_path, name)))
+            # post-process the mesh and save, saving the largest N clusters
+            mesh_post = post_process_mesh(mesh, cluster_to_keep=num_cluster)
+            o3d.io.write_triangle_mesh(os.path.join(render_path, name.replace('.ply', '_post.ply')), mesh_post)
+
+            # torchvision.utils.save_image(rendering, os.path.join(render_path, f"render_{view.image_name}.png"))
+            torchvision.utils.save_image(depth, os.path.join(render_path, f"depth_{view.image_name}.png"))
+            print("saving pics to path: ", render_path)
+            times.append(elapsed)
+
 
             # evaluate
             if config.evaluate:
@@ -144,6 +224,12 @@ def test(config):
                  ssim=_ssim.cpu().numpy(),
                  lpips=_lpips.cpu().numpy(),
                  time=_time)
+
+        print('metrics/psnr', _psnr)
+        print('metrics/ssim', _ssim)
+        print('metrics/lpips', _lpips)
+        print('metrics/time', _time)
+        print()
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
@@ -179,7 +265,8 @@ def main(config):
         config.suffix = config.suffix + '-freeview'
     wandb_name = config.name + '-' + config.suffix
     wandb.init(
-        mode="disabled" if config.wandb_disable else None,
+        # mode="disabled" if config.wandb_disable else None,
+        mode="disabled",
         name=wandb_name,
         project='gaussian-splatting-avatar-test',
         entity='fast-avatar',

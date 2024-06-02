@@ -44,6 +44,16 @@ class Camera:
         self.data['bone_transforms'] = self.bone_transforms.to(self.data_device)
 
 
+        # print('world_view_transform')
+        # print(self.data['world_view_transform'])
+
+        # print('camera_cneter')
+        # print(self.data['camera_center'])
+
+
+
+
+
     def __getattr__(self, item):
         return self.data[item]
 
