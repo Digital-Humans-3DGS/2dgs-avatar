@@ -1,15 +1,16 @@
-# Copied readme from 3DGS-Avatar:
-# 3DGS-Avatar: Animatable Avatars via Deformable 3D Gaussian Splatting
-## [Paper](https://arxiv.org/abs/2312.09228) | [Project Page](https://neuralbodies.github.io/3DGS-Avatar/index.html)
+# 2DGS-Avatar: Surface-Aligned Gaussian Splatting Avatar
 
 <img src="assets/teaser.gif" width="800"/> 
 
-This repository contains the implementation of the CVPR 2024 submission 
-[3DGS-Avatar: Animatable Avatars via Deformable 3D Gaussian Splatting](https://arxiv.org/abs/2312.09228).
+This repository contains the Team 10 Project Surface-Aligned Gaussian Splatting Avatar
 
-You can find detailed usage instructions for using pretrained models and training your own models below.
+You can find detailed usage instructions for using pre-trained models and training your own models below.
 
-If you find our code useful, please cite:
+This user guide is mostly a copy from the original repo, please find more useful infos there:
+### [3DGS-Avatar Paper](https://arxiv.org/abs/2312.09228) 
+### [3DGS-Avatar GitHub page](https://github.com/mikeqzy/3dgs-avatar-release)
+
+If you find our code useful, please cite the original project:
 
 ```bibtex
 @article{qian20233dgsavatar,
