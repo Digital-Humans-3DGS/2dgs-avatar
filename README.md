@@ -1,3 +1,4 @@
+# Copied readme from 3DGS-Avatar:
 # 3DGS-Avatar: Animatable Avatars via Deformable 3D Gaussian Splatting
 ## [Paper](https://arxiv.org/abs/2312.09228) | [Project Page](https://neuralbodies.github.io/3DGS-Avatar/index.html)
 
